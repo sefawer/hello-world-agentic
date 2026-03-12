@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: hello_user
+          POSTGRES_PASSWORD: hello_pass
+          POSTGRES_DB: hello_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      working-directory: ./services/api
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio httpx
+
+    - name: Run API tests
+      working-directory: ./services/api
+      env:
+        DATABASE_URL: postgresql+asyncpg://hello_user:hello_pass@localhost:5432/hello_db
+      run: |
+        pytest -v
+
+  test-websocket:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+
+    - name: Test WebSocket
+      working-directory: ./services/websocket
+      run: |
+        go mod download
+        go test -v ./...
+
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      working-directory: ./services/frontend
+      run: npm ci
+
+    - name: Lint
+      working-directory: ./services/frontend
+      run: npm run lint || true
+
+    - name: Type check
+      working-directory: ./services/frontend
+      run: npx tsc --noEmit
+
+    - name: Build
+      working-directory: ./services/frontend
+      run: npm run build

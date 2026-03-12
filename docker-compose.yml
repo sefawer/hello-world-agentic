@@ -1,0 +1,84 @@
+version: '3.8'
+
+name: hello-world-agentic
+
+networks:
+  hello-world-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: hello-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hello_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hello_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-hello_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./services/database/init:/docker-entrypoint-initdb.d
+    networks:
+      - hello-world-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hello_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API servisi şimdilik placeholder
+  api:
+    build: ./services/api
+    container_name: hello-api
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - WEBSOCKET_URL=http://websocket:8001
+    depends_on:
+      db:
+        condition: service_healthy
+      websocket:
+        condition: service_started
+    networks:
+      - hello-world-net
+    volumes:
+      - ./services/api:/app
+    restart: unless-stopped
+
+  # WebSocket servisi şimdilik placeholder
+  websocket:
+    build: ./services/websocket
+    container_name: hello-ws
+    ports:
+      - "${WS_PORT:-8001}:8001"
+    environment:
+      - WS_PORT=8001
+      - WS_HOST=0.0.0.0
+    networks:
+      - hello-world-net
+    volumes:
+      - ./services/websocket:/app
+    restart: unless-stopped
+
+  # Frontend servisi şimdilik placeholder
+  frontend:
+    build: ./services/frontend
+    container_name: hello-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8001
+    depends_on:
+      - api
+      - websocket
+    networks:
+      - hello-world-net
+    restart: unless-stopped
