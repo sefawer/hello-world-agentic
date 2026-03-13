@@ -82,3 +82,16 @@ services:
     networks:
       - hello-world-net
     restart: unless-stopped
+  mcp-server:
+    build: ./services/mcp-server
+    container_name: hello-mcp-nest
+    networks:
+      - hello-world-net
+    depends_on:
+      - api
+    restart: unless-stopped
+    # Development modunda debug için port aç (opsiyonel)
+    ports:
+      - "9229:9229"
+    # STDIO kullanacağı için stdin açık tut
+    stdin_open: true
